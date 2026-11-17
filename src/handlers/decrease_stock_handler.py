@@ -3,6 +3,7 @@ Handler: decrease stock
 SPDX - License - Identifier: LGPL - 3.0 - or -later
 Auteurs : Gabriel C. Ullmann, Fabio Petrillo, 2025
 """
+import config
 import requests
 from handlers.handler import Handler
 from order_saga_state import OrderSagaState
@@ -19,26 +20,35 @@ class DecreaseStockHandler(Handler):
     def run(self):
         """Call StoreManager to check out from stock"""
         try:
-            # TODO: effectuer une requête à /stocks pour diminuer les quantités dans le stock
-            """
-            POST my-api-gateway-address/stocks ...
-            json={
+            # PUT /stocks (et non POST, qui fixe une quantité absolue) retire les quantités de chaque article
+            response = requests.put(f'{config.API_GATEWAY_URL}/store-manager-api/stocks',
+                json={
                     "items": self.order_item_data,
                     "operation": "-"
                 },
-            """
-            response_ok = True
-            if response_ok:
+                headers={'Content-Type': 'application/json'}
+            )
+            if response.ok:
                 self.logger.debug("Transition d'état: DecreaseStock -> STOCK_DECREASED")
                 return OrderSagaState.STOCK_DECREASED
             else:
+                self.logger.error(f"DecreaseStock a échoué : {response.status_code} - {response.text}")
                 return self.rollback()
-            
-        except Exception:
+
+        except Exception as e:
+            self.logger.error("DecreaseStock a échoué : " + str(e))
             return self.rollback()
-        
+
     def rollback(self):
         """ Call StoreManager to delete order if stock decrease fails """
-        # TODO: utilisez l'ID de la commande pour la supprimer
+        # Compensation de CreateOrder : la commande est supprimée, car le stock n'a pas pu être réservé
+        try:
+            response = requests.delete(f'{config.API_GATEWAY_URL}/store-manager-api/orders/{self.order_id}')
+            if not response.ok:
+                self.logger.error(f"La suppression de la commande {self.order_id} a échoué : {response.status_code} - {response.text}")
+        except Exception as e:
+            self.logger.error(f"La suppression de la commande {self.order_id} a échoué : " + str(e))
+
+        # Même si la compensation échoue, on passe à l'état suivant (pas de rollback sur les rollbacks)
         self.logger.debug(f"Transition d'état: DecreaseStockFailure -> ORDER_DELETED")
         return OrderSagaState.ORDER_DELETED
