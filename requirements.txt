@@ -3,3 +3,10 @@ python-dotenv>=1.0
 Flask>=2.0
 cryptography>=45.0
 requests>=2.32
+# Versions fixées : à partir de 1.42, le SDK Python ajoute un drapeau « random »
+# dans traceparent (…-03) que KrakenD 2.7 refuse, ce qui coupe la trace en deux.
+opentelemetry-api==1.40.0
+opentelemetry-sdk==1.40.0
+opentelemetry-exporter-otlp-proto-grpc==1.40.0
+opentelemetry-instrumentation-flask==0.61b0
+opentelemetry-instrumentation-requests==0.61b0
